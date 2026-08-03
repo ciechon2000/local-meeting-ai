@@ -1,6 +1,0 @@
-# WhisperX 3.8.6 wymaga PyTorch 2.8.x; CUDA wheels instalujemy osobno w Dockerfile.
-whisperx==3.8.6
-fastapi==0.116.1
-uvicorn[standard]==0.35.0
-python-multipart==0.0.20
-orjson==3.11.1
