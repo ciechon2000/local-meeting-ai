@@ -1,0 +1,13 @@
+.git
+.github
+__pycache__
+*.pyc
+.env
+.venv
+venv
+models
+data
+*.mp3
+*.wav
+*.m4a
+*.mp4
