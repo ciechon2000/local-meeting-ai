@@ -22,15 +22,15 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 
-APP_VERSION = "0.1.0"
+APP_VERSION = "0.2.0"
 DEVICE = os.getenv("DEVICE", "cuda" if torch.cuda.is_available() else "cpu").strip().lower()
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "large-v3").strip()
 COMPUTE_TYPE = os.getenv(
     "COMPUTE_TYPE", "float16" if DEVICE == "cuda" else "int8"
 ).strip()
 BATCH_SIZE = max(1, int(os.getenv("BATCH_SIZE", "8")))
-MODEL_CACHE = Path(os.getenv("MODEL_CACHE", "/data/models")).resolve()
-TMP_DIR = Path(os.getenv("TMP_DIR", "/data/tmp")).resolve()
+MODEL_CACHE = Path(os.getenv("MODEL_CACHE", "/cache/models")).resolve()
+TMP_DIR = Path(os.getenv("TMP_DIR", "/tmp/local-meeting-ai")).resolve()
 MAX_FILE_MB = max(1, int(os.getenv("MAX_FILE_MB", "2048")))
 API_KEY = os.getenv("API_KEY", "").strip()
 HF_TOKEN = (os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACE_TOKEN") or "").strip()
@@ -52,8 +52,25 @@ ALLOWED_EXTENSIONS = {
     ".aac",
 }
 
-MODEL_CACHE.mkdir(parents=True, exist_ok=True)
-TMP_DIR.mkdir(parents=True, exist_ok=True)
+def ensure_writable_directory(path: Path, fallback: Path) -> Path:
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        probe = path / ".write-test"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink(missing_ok=True)
+        return path
+    except Exception:
+        LOGGER.warning("Katalog %s nie jest zapisywalny; używam %s", path, fallback)
+        fallback.mkdir(parents=True, exist_ok=True)
+        return fallback
+
+
+MODEL_CACHE = ensure_writable_directory(
+    MODEL_CACHE, Path("/tmp/local-meeting-ai-models")
+)
+TMP_DIR = ensure_writable_directory(
+    TMP_DIR, Path("/tmp/local-meeting-ai-runtime")
+)
 
 # Wszystkie cache modeli trafiają do trwałego wolumenu.
 os.environ.setdefault("HF_HOME", str(MODEL_CACHE / "huggingface"))
@@ -344,6 +361,12 @@ def health() -> dict[str, Any]:
         "hf_token_configured": bool(HF_TOKEN),
         "asr_loaded": manager.asr_model is not None,
         "diarization_loaded": manager.diarization_model is not None,
+        "runtime": {
+            "model_cache": str(MODEL_CACHE),
+            "tmp_dir": str(TMP_DIR),
+            "model_cache_writable": os.access(MODEL_CACHE, os.W_OK),
+            "tmp_dir_writable": os.access(TMP_DIR, os.W_OK),
+        },
         "versions": {
             "python": package_version("pip"),
             "torch": torch.__version__,

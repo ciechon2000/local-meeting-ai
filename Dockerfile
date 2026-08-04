@@ -8,8 +8,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     HF_HUB_DISABLE_TELEMETRY=1 \
     DO_NOT_TRACK=1 \
     TOKENIZERS_PARALLELISM=false \
-    MODEL_CACHE=/data/models \
-    TMP_DIR=/data/tmp
+    MODEL_CACHE=/cache/models \
+    TMP_DIR=/tmp/local-meeting-ai
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       python3 \
@@ -24,7 +24,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN python3 -m pip install --upgrade pip setuptools wheel
 
-# Wersje zgodne z wymaganiami WhisperX 3.8.6 i CUDA 12.8.
 RUN python3 -m pip install \
       torch==2.8.0 \
       torchvision==0.23.0 \
@@ -36,12 +35,15 @@ COPY requirements.txt ./
 RUN python3 -m pip install -r requirements.txt
 
 COPY app ./app
-
-RUN mkdir -p /data/models /data/tmp
+COPY docker-entrypoint.sh /usr/local/bin/local-meeting-ai-entrypoint
+RUN chmod +x /usr/local/bin/local-meeting-ai-entrypoint \
+    && mkdir -p /cache/models /tmp/local-meeting-ai \
+    && chmod -R 0777 /cache /tmp/local-meeting-ai
 
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=5 \
   CMD curl -fsS http://127.0.0.1:8000/health || exit 1
 
+ENTRYPOINT ["/usr/local/bin/local-meeting-ai-entrypoint"]
 CMD ["python3", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--timeout-keep-alive", "120"]
